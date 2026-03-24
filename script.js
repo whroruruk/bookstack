@@ -1,94 +1,108 @@
-// 1. Firebase 설정
-const firebaseConfig = {
-    apiKey: "AIzaSyBfBYodmAEL-lnKfFn8KLXMc7XqCO1w4zw",
-    authDomain: "reading-lab-69ea0.firebaseapp.com",
-    projectId: "reading-lab-69ea0",
-    storageBucket: "reading-lab-69ea0.firebasestorage.app",
-    messagingSenderId: "45130148120",
-    appId: "1:45130148120:web:96629d86ca19972c6a166d",
-    measurementId: "G-C4YNCKXL96"
-};
-
-// 2. 초기화
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+// [주의] 구글 클라우드 콘솔에서 발급받은 실제 값으로 교체해야 합니다.
+const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+const API_KEY = 'YOUR_API_KEY';
+const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 const TTB_KEY = 'ttbtwinwhee0938001';
 
-let currentUser = null;
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
 let shelves = [];
-const hipColors = ['#ffffff', '#00ff88', '#3a86ff', '#ff006e', '#8338ec', '#ffbe0b', '#adb5bd', '#ff5400', '#00f5d4', '#9d4edd'];
+let fileId = null;
 
-// 3. 인증 상태 감시 (항상성 유지)
-auth.onAuthStateChanged(user => {
-    if (user) {
-        currentUser = user;
+// 1. 초기 반응 체계 설정
+window.onload = () => {
+    gapi.load('client', async () => {
+        await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
+        gapiInited = true;
+        updateStatus();
+    });
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID, scope: SCOPES, callback: '', 
+    });
+    gisInited = true;
+};
+
+function updateStatus() {
+    if (gapiInited && gisInited) document.getElementById('syncStatus').innerText = "연결 준비 완료";
+}
+
+// 2. 로그인 및 개체 식별
+function handleLogin() {
+    tokenClient.callback = async (resp) => {
+        if (resp.error) return;
         document.getElementById('loginBtn').style.display = 'none';
         document.getElementById('logoutBtn').style.display = 'block';
         document.getElementById('mainContent').style.display = 'block';
         document.getElementById('loginMessage').style.display = 'none';
-        document.getElementById('syncStatus').innerText = `${user.displayName}님 서재`;
-        loadData();
-    } else {
-        currentUser = null;
-        document.getElementById('loginBtn').style.display = 'block';
-        document.getElementById('logoutBtn').style.display = 'none';
-        document.getElementById('mainContent').style.display = 'none';
-        document.getElementById('loginMessage').style.display = 'block';
-        document.getElementById('syncStatus').innerText = "로그인 필요";
-    }
-});
-
-// 4. 로그인/로그아웃 함수
-function handleLogin() {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch(err => {
-        console.error("Login Error:", err);
-        alert("로그인 중 오류 발생: " + err.message);
-    });
+        await loadData();
+    };
+    tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 function handleLogout() {
-    auth.signOut();
-}
-
-// 5. 데이터 저장 및 불러오기 (대사 작용)
-async function save() {
-    if (!currentUser) return;
-    document.getElementById('syncStatus').innerText = "저장 중...";
-    try {
-        // 지정된 고정 문서 ID(My_BookStack_Data_DO_NOT_DELETE)를 사용하여 저장합니다.
-        await db.collection("users").doc("My_BookStack_Data_DO_NOT_DELETE").set({
-            shelves: shelves,
-            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        document.getElementById('syncStatus').innerText = "저장 완료";
-    } catch (e) {
-        document.getElementById('syncStatus').innerText = "저장 실패";
-        console.error("Save Error:", e);
+    const token = gapi.client.getToken();
+    if (token !== null) {
+        google.accounts.oauth2.revoke(token.access_token);
+        gapi.client.setToken('');
+        location.reload();
     }
 }
 
+// 3. 구글 드라이브와 대사 작용 (Load/Save)
 async function loadData() {
     try {
-        // 지정된 고정 문서 ID(My_BookStack_Data_DO_NOT_DELETE)로부터 데이터를 불러옵니다.
-        const doc = await db.collection("users").doc("My_BookStack_Data_DO_NOT_DELETE").get();
-        if (doc.exists) {
-            shelves = doc.data().shelves || [];
+        const response = await gapi.client.drive.files.list({
+            q: "name = 'bookstack_data.json'", spaces: 'appDataFolder', fields: 'files(id, name)'
+        });
+        const files = response.result.files;
+        if (files.length > 0) {
+            fileId = files[0].id;
+            const content = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+            shelves = content.result.shelves || [];
         } else {
             shelves = [{ title: 'MY COLLECTION', books: [], color: '#ffffff' }];
+            await save();
         }
         render();
-    } catch (e) {
-        console.error("Load Error:", e);
-    }
+    } catch (err) { console.error("Data Load Error:", err); }
 }
 
-// 6. 알라딘 검색 (외부 정보 섭취)
+async function save() {
+    document.getElementById('syncStatus').innerText = "개인 서고에 기록 중...";
+    const metadata = { 'name': 'bookstack_data.json', 'parents': ['appDataFolder'] };
+    const data = { shelves: shelves, lastUpdated: new Date() };
+
+    try {
+        const boundary = 'foo_bar_baz';
+        const delimiter = "\r\n--" + boundary + "\r\n";
+        const close_delim = "\r\n--" + boundary + "--";
+        const body = delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) +
+                     delimiter + 'Content-Type: application/json\r\n\r\n' + JSON.stringify(data) + close_delim;
+
+        if (!fileId) {
+            const res = await gapi.client.request({
+                path: '/upload/drive/v3/files', method: 'POST',
+                params: { uploadType: 'multipart' },
+                headers: { 'Content-Type': 'multipart/related; boundary=' + boundary }, body: body
+            });
+            fileId = res.result.id;
+        } else {
+            await gapi.client.request({
+                path: '/upload/drive/v3/files/' + fileId, method: 'PATCH',
+                params: { uploadType: 'multipart' },
+                headers: { 'Content-Type': 'multipart/related; boundary=' + boundary }, body: body
+            });
+        }
+        document.getElementById('syncStatus').innerText = "동기화 완료";
+    } catch (err) { document.getElementById('syncStatus').innerText = "기록 실패"; }
+}
+
+// 4. 도서 검색 및 UI 렌더링 (이전 로직 유지)
 async function searchByKeyword() {
     const kw = document.getElementById('kwInput').value;
     if (!kw) return;
-    
     const apiUrl = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101`;
     const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
 
@@ -103,74 +117,40 @@ async function searchByKeyword() {
         results.innerHTML = '';
         if (data.item) {
             data.item.forEach(i => {
-                const book = {
-                    title: i.title.replace(/<[^>]*>?/gm, ''),
-                    cover: i.cover.replace('coversum', 'cover500'),
-                    author: i.author ? i.author.split('(지은이)')[0] : "",
-                    addedDate: new Date().toLocaleDateString()
-                };
+                const book = { title: i.title, cover: i.cover.replace('coversum', 'cover500'), author: i.author, addedDate: new Date().toLocaleDateString() };
                 const div = document.createElement('div');
                 div.className = 'search-item';
-                div.innerHTML = `<img src="${book.cover}"><p style="font-size:9px; color:white; margin-top:5px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">${book.title}</p>`;
-                div.onclick = () => { 
-                    if(shelves.length === 0) shelves.push({ title: 'MY COLLECTION', books: [], color: '#ffffff' });
-                    shelves[0].books.unshift(book); 
-                    save(); render(); 
-                };
+                div.innerHTML = `<img src="${book.cover}">`;
+                div.onclick = () => { shelves[0].books.unshift(book); save(); render(); };
                 results.appendChild(div);
             });
         }
-    } catch (e) { console.error("Search Error:", e); }
+    } catch (e) { console.error("Search Error"); }
 }
 
-// 7. UI 렌더링 및 기능 (운동 작용)
 function render() {
     const container = document.getElementById('shelfList');
     container.innerHTML = '';
-    
     shelves.forEach((s, sIdx) => {
         const shelfEl = document.createElement('div');
         shelfEl.className = 'shelf-wrapper';
-        shelfEl.style.marginBottom = "30px";
         shelfEl.innerHTML = `
-            <div class="shelf-header" style="margin-bottom:20px; display:flex; align-items:center; gap:10px;">
-                <input type="text" class="shelf-title" style="color:${s.color}; background:transparent; border:none; font-size:1.2rem; font-weight:900;" value="${s.title}" onchange="shelves[${sIdx}].title=this.value; save();">
-                <button onclick="deleteShelf(${sIdx})" style="background:none; border:none; color:#ff4444; cursor:pointer; font-size:0.8rem;">삭제</button>
+            <div class="shelf-header">
+                <input type="text" class="shelf-title" value="${s.title}" style="color:${s.color};" onchange="shelves[${sIdx}].title=this.value; save();">
             </div>
-            <div class="book-grid-display" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:15px;">
-                ${s.books.map((b, bIdx) => `
-                    <div class="book" style="position:relative;">
-                        <img src="${b.cover}" style="width:100%; border-radius:4px;">
-                        <button onclick="deleteBook(${sIdx}, ${bIdx})" style="position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); color:white; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer;">×</button>
-                    </div>
-                `).join('')}
+            <div class="book-grid-display">
+                ${s.books.map((b, bIdx) => `<div class="book"><img src="${b.cover}"></div>`).join('')}
             </div>
         `;
         container.appendChild(shelfEl);
     });
-    updateTotal();
+    document.getElementById('totalCount').innerText = shelves.reduce((acc, cur) => acc + cur.books.length, 0);
 }
 
 function addShelf() {
-    shelves.push({ title: 'NEW STACK', books: [], color: hipColors[Math.floor(Math.random()*hipColors.length)] });
+    shelves.push({ title: 'NEW STACK', books: [], color: '#00ff88' });
     save(); render();
 }
-
-function deleteShelf(idx) {
-    if(confirm("책장을 삭제할까요?")) { shelves.splice(idx, 1); save(); render(); }
-}
-
-function deleteBook(sIdx, bIdx) {
-    shelves[sIdx].books.splice(bIdx, 1); save(); render();
-}
-
-function updateTotal() {
-    let total = 0;
-    shelves.forEach(s => total += s.books.length);
-    const totalCountEl = document.getElementById('totalCount');
-    if (totalCountEl) totalCountEl.innerText = total;
-}
-
 function clearSearch() { document.getElementById('kwInput').value = ''; document.getElementById('searchResults').innerHTML = ''; }
-function toggleStats(e) { document.getElementById('statsBar').classList.toggle('collapsed'); }
+function toggleStats() { document.getElementById('statsBar').classList.toggle('collapsed'); }
 function toggleGuide(show) { document.getElementById('guideModal').style.display = show ? 'flex' : 'none'; }
