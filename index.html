@@ -4,10 +4,210 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book Stack 📚</title>
-    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
+    <style>
+        /* 사용자님의 기존 CSS를 100% 동일하게 유지했습니다. */
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;900&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { 
+            --bg: #050505; 
+            --card-bg: #0f0f0f; 
+            --shelf-color: #1a1a1a;
+            --accent: #00ff88; 
+            --text-main: #ffffff; 
+            --text-sub: #888888;
+        }
+        
+        body { 
+            font-family: 'Pretendard', sans-serif; 
+            background: var(--bg); 
+            color: var(--text-main); 
+            padding: 3rem 1.5rem; 
+            min-height: 100vh;
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+        .container { max-width: 1680px; margin: 0 auto; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5rem; }
+        .title-container { display: flex; align-items: center; gap: 12px; }
+        .logo-bar { height: 3px; background: var(--accent); border-radius: 2px; margin-bottom: 4px; }
+        .title { font-size: 1.4rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+
+        .header-buttons { display: flex; align-items: center; gap: 10px; }
+        .btn { 
+            padding: 0.6rem 1.2rem; border: 1px solid #222; 
+            background: transparent; color: var(--text-sub); border-radius: 4px; 
+            cursor: pointer; font-size: 0.75rem; font-weight: 600; transition: 0.3s;
+        }
+        .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.05); }
+        .btn-new-stack { border-color: var(--accent); color: var(--accent); background: rgba(0,255,136,0.1); }
+
+        .hero-section { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: center; margin-bottom: 2rem; }
+        .hero-text h2 { font-size: 3.5rem; font-weight: 900; line-height: 1.1; margin-bottom: 1rem; letter-spacing: -0.02em; }
+        
+        .search-box {
+            background: #111; padding: 1rem 1.5rem; border-radius: 8px;
+            display: flex; align-items: center; border: 1px solid #222;
+        }
+        .search-box input { background: transparent; border: none; color: white; flex: 1; outline: none; font-size: 1rem; }
+        .clear-btn { cursor: pointer; opacity: 0.5; margin-right: 15px; font-weight: bold; font-size: 1.2rem; }
+
+        .stats-container {
+            background: #0f0f0f; border: 1px solid #1a1a1a; padding: 1rem 2rem; border-radius: 12px;
+            margin-bottom: 4rem; position: relative; overflow: hidden; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .stats-container.collapsed { height: 60px; padding: 0.8rem 2rem; cursor: pointer; }
+        .stats-container.collapsed:hover { background: #151515; }
+        .stats-header { display: flex; justify-content: space-between; align-items: center; }
+        .stats-title { font-size: 1.6rem; font-weight: 900; color: var(--accent); letter-spacing: 0.1em; }
+        .stats-toggle-btn { 
+            background: rgba(0, 255, 136, 0.1); border: 1px solid var(--accent); 
+            color: var(--accent); font-size: 0.75rem; padding: 6px 16px; 
+            border-radius: 20px; cursor: pointer; font-weight: 600; transition: 0.3s;
+        }
+        .stats-expand-area { margin-top: 30px; transition: opacity 0.3s; opacity: 1; }
+        .stats-container.collapsed .stats-expand-area { opacity: 0; pointer-events: none; }
+        .stats-content-layout { display: flex; align-items: flex-end; gap: 40px; overflow-x: auto; padding-bottom: 10px; }
+        .total-box { display: flex; flex-direction: column; align-items: center; min-width: 80px; color: #ffffff; padding-bottom: 10px; }
+        .total-num { font-size: 3.4rem; font-weight: 900; line-height: 1; }
+        .total-lbl { font-size: 0.8rem; letter-spacing: 0.2em; margin-top: 5px; opacity: 0.7; }
+        .stats-shelf-list { display: flex; gap: 40px; align-items: flex-end; }
+        .stats-shelf-unit { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+        .shelf-visual-area { display: flex; gap: 4px; align-items: flex-end; margin-bottom: 15px; min-height: 100px; }
+        .stack-column { display: flex; flex-direction: column-reverse; width: 14px; gap: 2px; }
+        .stack-piece { width: 100%; height: 8px; border-radius: 1px; transition: 0.3s; }
+        .stats-shelf-info { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .stats-shelf-num { font-size: 1.8rem; font-weight: 900; line-height: 1; margin-bottom: 8px; }
+        .stats-shelf-title { font-size: 0.75rem; color: var(--text-sub); max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .shelf-search-wrapper { margin-top: 20px; border-top: 1px solid #222; padding-top: 15px; display: flex; justify-content: flex-end; }
+        .shelf-search-box { 
+            background: #1a1a1a; border: 1px solid #333; padding: 5px 12px; border-radius: 20px; 
+            display: flex; align-items: center; width: 250px;
+        }
+        .shelf-search-box input { background: transparent; border: none; color: #fff; font-size: 0.8rem; outline: none; width: 100%; }
+        .shelf-search-box span { font-size: 0.8rem; opacity: 0.5; }
+
+        .control-panel { display: flex; justify-content: flex-end; align-items: center; gap: 20px; margin-bottom: 2.5rem; padding: 0 10px; }
+        .control-group { display: flex; align-items: center; gap: 12px; color: var(--accent); font-size: 0.85rem; font-weight: 600; }
+        .control-group select { background: #111; color: var(--accent); border: 1px solid var(--accent); font-size: 0.75rem; padding: 5px 10px; border-radius: 4px; cursor: pointer; outline: none; }
+        .control-group input[type="checkbox"] { accent-color: var(--accent); }
+
+        #shelfList { display: flex; flex-direction: column; gap: 5rem; }
+        #shelfList.horizontal-layout { 
+            flex-direction: row; 
+            overflow-x: auto; 
+            padding-bottom: 30px; 
+            align-items: flex-start; 
+            gap: 3rem; 
+            margin-top: 1rem; 
+        }
+        #shelfList.horizontal-layout .shelf-wrapper { min-width: 450px; max-width: 450px; flex-shrink: 0; }
+
+        .shelf-wrapper { background: var(--card-bg); border-radius: 12px; padding: 2rem; border: 1px solid #1a1a1a; box-shadow: 0 30px 60px rgba(0,0,0,0.5); position: relative; }
+        .shelf-drag-handle { position: absolute; left: -35px; top: 50%; transform: translateY(-50%); color: #333; font-size: 24px; cursor: grab; opacity: 0; transition: 0.3s; padding: 10px; line-height: 1; }
+        .shelf-wrapper:hover .shelf-drag-handle { opacity: 1; color: var(--accent); }
+        .shelf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; gap: 15px; }
+        .shelf-title-area { display: flex; align-items: center; gap: 12px; flex: 1; position: relative; }
+        .shelf-title { font-size: 1.1rem; font-weight: 900; border: none; background: transparent; outline: none; letter-spacing: 0.05em; color: inherit; flex: 1; }
+        
+        .book-grid-display { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1.5rem; }
+        .book { position: relative; transition: 0.4s cubic-bezier(0.2, 1, 0.3, 1); cursor: pointer; }
+        .book.selected { border-radius: 4px; box-shadow: 0 0 0 3px var(--accent); }
+        .book:hover { transform: translateY(-10px); }
+        .book img { width: 100%; height: auto; border-radius: 4px; box-shadow: 5px 10px 20px rgba(0,0,0,0.6); display: block; }
+        
+        .memo-popup {
+            position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+            background: rgba(15, 15, 15, 0.95); color: #fff; padding: 10px 14px;
+            border-radius: 8px; font-size: 0.8rem; width: 200px; max-height: 150px;
+            overflow-y: auto; border: 1px solid var(--accent);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000;
+            pointer-events: none; opacity: 0; transition: 0.3s;
+            backdrop-filter: blur(5px); line-height: 1.4; text-align: left;
+        }
+        .book:hover .memo-popup, .book-spine:hover .memo-popup, .cell-main:hover .memo-popup { opacity: 1; bottom: 120%; }
+
+        .memo-indicator { position: absolute; bottom: 8px; right: 8px; z-index: 5; font-size: 14px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); pointer-events: none; }
+        .book-delete { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.2); width: 24px; height: 24px; cursor: pointer; font-size: 10px; display: none; z-index: 10; border-radius: 50%; color: #ff4444; backdrop-filter: blur(4px); }
+        .book-select-btn { position: absolute; top: 6px; left: -12px; background: #000; border: 1px solid var(--accent); width: 24px; height: 24px; cursor: pointer; font-size: 10px; display: none; z-index: 11; border-radius: 50%; color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+        .book:hover .book-delete, .book:hover .book-select-btn { display: flex; align-items: center; justify-content: center; }
+
+        .book-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 60%; background: linear-gradient(transparent, rgba(0,0,0,0.95) 40%); padding: 10px; opacity: 0; transition: 0.3s; display: flex; flex-direction: column; justify-content: flex-end; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
+        .book:hover .book-overlay { opacity: 1; }
+        .book-hover-title { font-size: 12px; color: white; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .book-hover-author { font-size: 10px; color: #bbb; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .book-date { font-size: 9px; color: var(--accent); font-weight: bold; margin-bottom: 6px; }
+        .book-memo-overlay { background: transparent; border: none; color: #eee; font-size: 11px; resize: none; outline: none; height: 45px; line-height: 1.4; }
+
+        .book-spine-display { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-end; padding-bottom: 20px; }
+        .book-spine { width: 38px; height: 220px; position: relative; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center; border-radius: 2px; box-shadow: 3px 0 8px rgba(0,0,0,0.5); overflow: hidden; border-left: 1px solid rgba(255,255,255,0.1); }
+        .book-spine:hover { transform: translateY(-10px); z-index: 10; }
+        .spine-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; filter: blur(15px) brightness(0.6); transform: scale(3); z-index: 1; }
+        .spine-content { position: relative; z-index: 2; height: 100%; width: 100%; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); }
+        .spine-text { writing-mode: vertical-rl; text-orientation: mixed; color: white; font-size: 0.8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 180px; letter-spacing: 0.05em; text-shadow: 0 0 8px rgba(0,0,0,0.9); }
+
+        .book-table-container { max-height: 600px; overflow-y: auto; }
+        .book-table { width: 100%; border-collapse: collapse; }
+        .book-table tr { display: flex; width: 100%; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .book-table td { padding: 10px 0; color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cell-check { width: 35px; text-align: center; cursor: default; }
+        .cell-main { flex: 1; display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative; }
+        .mini-cover { width: 30px !important; height: 42px !important; object-fit: cover; border-radius: 2px; flex-shrink: 0; }
+        .author-tag { color: var(--text-sub); font-size: 0.75rem; margin-left: 8px; }
+        .cell-action { width: 40px; text-align: right; }
+        .table-btn { background: transparent; border: 1px solid #222; color: #555; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; font-size: 9px; }
+
+        .expand-toggle-wrapper { width: 100%; display: flex; justify-content: center; margin-top: 2rem; }
+        .btn-expand-shelf { 
+            background: rgba(255,255,255,0.05); border: 1px dashed #333; color: var(--text-sub); 
+            padding: 8px 30px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; transition: 0.3s;
+        }
+        .btn-expand-shelf:hover { background: rgba(0,255,136,0.1); border-color: var(--accent); color: var(--accent); }
+
+        .search-results { display: flex; gap: 1.5rem; overflow-x: auto; padding: 1rem 0; min-height: 200px; }
+        .search-item { width: 100px; flex-shrink: 0; cursor: pointer; opacity: 0.6; transition: 0.3s; }
+        .search-item img { width: 100%; border-radius: 2px; }
+        .sortable-ghost { opacity: 0.1; background: var(--accent) !important; }
+        .color-palette { display: none; position: absolute; top: 35px; left: 0; background: #1a1a1a; padding: 12px; border-radius: 8px; grid-template-columns: repeat(5, 1fr); gap: 10px; z-index: 100; border: 1px solid #333; box-shadow: 0 15px 40px rgba(0,0,0,0.8); }
+        .palette-item { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); }
+
+        #guideModal { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center;
+            backdrop-filter: blur(8px);
+        }
+        .guide-box { 
+            background: #111; border: 1px solid var(--accent); width: 90%; max-width: 600px; 
+            max-height: 80vh; border-radius: 20px; padding: 40px; color: #fff; position: relative;
+            overflow-y: auto; box-shadow: 0 20px 50px rgba(0,255,136,0.1);
+            animation: modalFadeIn 0.3s ease-out;
+        }
+        @keyframes modalFadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .guide-box h3 { font-size: 1.8rem; margin-bottom: 25px; color: var(--accent); font-weight: 900; }
+        .guide-item { margin-bottom: 20px; line-height: 1.6; }
+        .guide-item b { color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px; }
+        .guide-item p { color: #ccc; font-size: 0.95rem; }
+        .close-guide { position: absolute; top: 20px; right: 20px; font-size: 1.5rem; cursor: pointer; opacity: 0.5; }
+        .close-guide:hover { opacity: 1; }
+        
+        .help-fab { 
+            position: fixed; bottom: 30px; right: 30px; width: 56px; height: 56px; 
+            background: var(--accent); color: #000; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 24px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,255,136,0.3);
+            z-index: 999; transition: 0.3s; border: none;
+        }
+        .help-fab:hover { transform: scale(1.1) rotate(10deg); }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -18,10 +218,13 @@
             </div>
             <div class="header-buttons">
                 <span id="syncStatus">준비 중...</span>
-                <button id="loginBtn" class="btn btn-new-stack" onclick="handleLogin()">Google 연결</button>
+                <button id="loginBtn" class="btn" style="border-color:#3a86ff; color:#3a86ff;" onclick="handleLogin()">Google 로그인</button>
+                
                 <div id="userActions" style="display:none; gap:10px; align-items:center;">
-                    <button id="logoutBtn" class="btn" onclick="handleLogout()">연결 해제</button>
                     <button class="btn btn-new-stack" onclick="addShelf()">New Stack</button>
+                    <button class="btn" onclick="backupToSheet()">Sheet Backup</button>
+                    <button class="btn" onclick="openDrive()">Open Drive</button>
+                    <button class="btn" onclick="handleLogout()" style="border-color:#ff4444; color:#ff4444;">로그아웃</button>
                 </div>
             </div>
         </header>
@@ -41,21 +244,467 @@
 
             <div class="stats-container collapsed" id="statsBar" onclick="toggleStats(event)">
                 <div class="stats-header">
-                    <div>
-                        <span class="stats-title">STACKS</span>
-                        <span style="margin-left:15px; font-weight:900; opacity:0.6;"><span id="totalCount">0</span> TOTAL</span>
-                    </div>
-                    <button class="stats-toggle-btn">펼치기</button>
+                    <span class="stats-title">STACKS</span>
+                    <button class="stats-toggle-btn" id="toggleBtn">펼치기</button>
                 </div>
-                <div class="stats-expand-area"><div id="statsShelfList" class="stats-content-layout"></div></div>
+                <div class="stats-expand-area">
+                    <div class="stats-content-layout">
+                        <div class="total-box"><span class="total-num" id="totalCount">0</span><span class="total-lbl">TOTAL</span></div>
+                        <div class="stats-shelf-list" id="statsShelfList"></div>
+                    </div>
+                    <div class="shelf-search-wrapper" onclick="event.stopPropagation()">
+                        <div class="shelf-search-box">
+                            <span>🔍</span>
+                            <input type="text" id="shelfInnerSearch" placeholder="내 책장에서 검색..." oninput="render()">
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="shelfList"></div>
+
+            <div class="control-panel">
+                <div class="control-group"><label style="cursor:pointer;"><input type="checkbox" id="optHorizontal" onchange="render()"> 가로 정렬</label></div>
+                <div class="control-group"><span>VIEW</span><select id="viewMode" onchange="render()"><option value="cover">표지 모드</option><option value="spine">책등 모드</option><option value="text">제목 모드</option></select></div>
+                <button class="btn" id="multiMoveBtn" style="display:none; border-color: var(--accent); color:var(--accent);" onclick="moveSelectedPrompt()">Move Selected</button>
+            </div>
+
+            <div id="shelfList"><p style="text-align:center; padding:100px; color:var(--text-sub); letter-spacing:0.2em;">LOADING YOUR LIBRARY...</p></div>
         </section>
-        
+
         <section id="loginMessage" style="text-align:center; padding:100px 0;">
-            <p style="color:var(--text-sub); letter-spacing:0.1em;">구글 드라이브와 연결하여 당신만의 **데이터 자립 서재** 를 시작하세요. ✨</p>
+            <p style="color:var(--text-sub); letter-spacing:0.1em;">구글 계정으로 로그인하여 당신의 서재를 열어보세요. ✨</p>
         </section>
     </div>
-    <script src="script.js"></script>
+
+    <button class="help-fab" onclick="toggleGuide(true)">❔</button>
+
+    <div id="guideModal" onclick="toggleGuide(false)">
+        <div class="guide-box" onclick="event.stopPropagation()">
+            <span class="close-guide" onclick="toggleGuide(false)">✕</span>
+            <h3>Book Stack Guide 📚</h3>
+            <div class="guide-item">
+                <b>1. 첫 책장 만들기 (New Stack)</b>
+                <p>상단의 [New Stack] 버튼으로 책장을 만들고, 제목과 고유 색상을 설정해 보세요.</p>
+            </div>
+            <div class="guide-item">
+                <b>2. 책 등록하기 (Search)</b>
+                <p>중앙 검색창에서 책을 찾아 클릭하면 내 서재에 담깁니다. 이미 있는 책은 미리 알려드려요!</p>
+            </div>
+            <div class="guide-item">
+                <b>3. 3가지 보기 모드 (View Modes)</b>
+                <p>표지, 책등, 제목 모드 중 당신의 취향에 맞는 스타일을 골라보세요.</p>
+            </div>
+            <div class="guide-item">
+                <b>4. 생각 기록하기 (Memo)</b>
+                <p>책을 클릭하여 메모를 남겨보세요. 메모가 있는 책엔 작은 💬 아이콘이 생기며, 마우스를 올리면 어떤 모드에서든 내용을 바로 확인할 수 있습니다.</p>
+            </div>
+            <div class="guide-item">
+                <b>5. 내 서재 속 검색 (Internal Search)</b>
+                <p>[STACKS] 바를 펼쳐 내부 검색창을 활용하면 수많은 책 사이에서도 금방 원하는 책을 찾을 수 있어요.</p>
+            </div>
+            <div class="guide-item">
+                <b>6. 안전한 데이터 백업</b>
+                <p>[Sheet Backup] 버튼으로 언제든 기록을 스프레드시트에 저장할 수 있습니다.</p>
+            </div>
+            <p style="text-align:center; margin-top:30px; opacity:0.5; font-size:0.8rem;">즐거운 독서 여정 되시길 바랍니다. ✨</p>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 환경 설정 및 구글 통신망 ---
+        const CLIENT_ID = '982927191150-uc696nka5n0n3j0qmjt0mjnl1tgsj7i0.apps.googleusercontent.com';
+        const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+        const TTB_KEY = 'ttbtwinwhee0938001';
+        const DATA_FILE_NAME = 'My_BookStack_Data_DO_NOT_DELETE';
+
+        let tokenClient, gapiInited = false, gisInited = false, fileId = null;
+        
+        // --- 2. 원본 상태 변수 유지 ---
+        const hipColors = ['#ffffff', '#00ff88', '#3a86ff', '#ff006e', '#8338ec', '#ffbe0b', '#adb5bd', '#ff5400', '#00f5d4', '#9d4edd'];
+        let shelves = [];
+        let selectedItems = [];
+        let shelfExpandedStates = {}; // 각 책장의 펼침 상태 저장 (sIdx: boolean)
+
+        // --- 3. 초기화 및 로그인 ---
+        window.onload = () => {
+            gapi.load('client', async () => {
+                await gapi.client.init({ discoveryDocs: DISCOVERY_DOCS });
+                gapiInited = true;
+                checkPersistentLogin(); 
+            });
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID, scope: SCOPES, callback: async (resp) => {
+                    if (resp.error) return;
+                    localStorage.setItem('gapi_token', JSON.stringify(resp));
+                    await afterLoggedIn();
+                },
+            });
+            gisInited = true;
+        };
+
+        async function checkPersistentLogin() {
+            const savedToken = localStorage.getItem('gapi_token');
+            if (savedToken) {
+                const token = JSON.parse(savedToken);
+                gapi.client.setToken(token);
+                await afterLoggedIn();
+            } else {
+                document.getElementById('syncStatus').innerText = "Cloud Ready";
+            }
+        }
+
+        async function afterLoggedIn() {
+            document.getElementById('loginBtn').style.display = 'none';
+            document.getElementById('userActions').style.display = 'flex';
+            document.getElementById('mainContent').style.display = 'block';
+            document.getElementById('loginMessage').style.display = 'none';
+            document.getElementById('syncStatus').innerText = "Connecting...";
+            await findOrCreateDataFile(); 
+        }
+
+        function handleLogin() { tokenClient.requestAccessToken({ prompt: 'consent' }); }
+        function handleLogout() { localStorage.removeItem('gapi_token'); location.reload(); }
+
+        // --- 4. 구글 드라이브 대사 작용 (GAS 대체 부분) ---
+        async function findOrCreateDataFile() {
+            try {
+                const res = await gapi.client.drive.files.list({
+                    q: `name = '${DATA_FILE_NAME}' and trashed = false`,
+                    fields: 'files(id, name)'
+                });
+                
+                if (res.result.files.length > 0) {
+                    fileId = res.result.files[0].id;
+                    await loadData();
+                } else {
+                    shelves = [{ title: 'MY COLLECTION', books: [], color: '#ffffff' }];
+                    await save();
+                    render();
+                }
+            } catch (err) { console.error("File Search Error"); }
+        }
+
+        async function loadData() {
+            try {
+                const content = await gapi.client.drive.files.get({ fileId: fileId, alt: 'media' });
+                const rawData = content.result;
+                if (Array.isArray(rawData)) {
+                    shelves = rawData;
+                } else if (rawData && rawData.shelves) {
+                    shelves = rawData.shelves;
+                } else {
+                    shelves = [{ title: 'MY COLLECTION', books: [], color: '#ffffff' }];
+                }
+                render();
+                document.getElementById('syncStatus').innerText = "Cloud Active";
+            } catch (err) { console.error("Data Load Error"); }
+        }
+
+        async function save() {
+            if (!gapi.client.getToken()) return;
+            document.getElementById('syncStatus').innerText = "Syncing...";
+            
+            const metadata = { 'name': DATA_FILE_NAME };
+            const bodyContent = JSON.stringify(shelves);
+            const boundary = 'foo_bar_baz';
+            const body = `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${bodyContent}\r\n--${boundary}--`;
+
+            try {
+                const path = fileId ? `/upload/drive/v3/files/${fileId}` : '/upload/drive/v3/files';
+                const method = fileId ? 'PATCH' : 'POST';
+                const res = await gapi.client.request({
+                    path: path, method: method, params: { uploadType: 'multipart' },
+                    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: body
+                });
+                if (!fileId) fileId = res.result.id;
+                document.getElementById('syncStatus').innerText = "Cloud Active";
+            } catch (err) { document.getElementById('syncStatus').innerText = "Sync Error"; }
+        }
+
+        // --- 5. 백업 및 드라이브 열기 (GAS 대체 부분) ---
+        async function backupToSheet() {
+            if (!gapi.client.getToken()) return alert("로그인이 필요합니다.");
+            document.getElementById('syncStatus').innerText = "백업 중...";
+            
+            // CSV 데이터를 생성하여 구글 드라이브에 시트로 업로드합니다.
+            let csvContent = "\uFEFFStack,Title,Author,Publisher,PubDate,Date,Memo,AladinLink\n";
+            shelves.forEach(s => s.books.forEach(b => {
+                const row = [s.title, b.title, b.author, b.publisher||"", b.pubDate||"", b.addedDate, b.memo, b.link]
+                    .map(v => `"${(v||'').toString().replace(/"/g, '""')}"`).join(',');
+                csvContent += row + "\n";
+            }));
+
+            const metadata = {
+                'name': "BookStack_Backup_" + new Date().toLocaleDateString(),
+                'mimeType': 'application/vnd.google-apps.spreadsheet'
+            };
+            const boundary = 'foo_bar_baz';
+            const body = `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: text/csv\r\n\r\n${csvContent}\r\n--${boundary}--`;
+
+            try {
+                await gapi.client.request({
+                    path: '/upload/drive/v3/files', method: 'POST',
+                    params: { uploadType: 'multipart' },
+                    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: body
+                });
+                alert("백업 완료! 구글 드라이브에 시트가 생성되었습니다.");
+                document.getElementById('syncStatus').innerText = "Cloud Active";
+            } catch (err) {
+                alert("백업 실패");
+                document.getElementById('syncStatus').innerText = "Cloud Active";
+            }
+        }
+
+        function openDrive() {
+            window.open('https://drive.google.com/drive/search?q=' + encodeURIComponent(DATA_FILE_NAME), '_blank');
+        }
+
+        // --- 6. 검색 (서버 우회 통신) ---
+        async function searchByKeyword() {
+            const kw = document.getElementById('kwInput').value;
+            if (!kw) return;
+            const url = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101`;
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+            
+            try {
+                const res = await fetch(proxyUrl);
+                const rawData = await res.json();
+                let content = rawData.contents.trim();
+                if (content.endsWith(';')) content = content.substring(0, content.length - 1);
+                const data = JSON.parse(content);
+                
+                const results = document.getElementById('searchResults');
+                results.innerHTML = '';
+                if (data.item) {
+                    data.item.forEach(i => {
+                        const book = {
+                            title: i.title.replace(/<[^>]*>?/gm, ''),
+                            cover: i.cover.replace('coversum', 'cover500'),
+                            link: i.link,
+                            author: i.author ? i.author.split('(지은이)')[0] : "",
+                            publisher: i.publisher,
+                            pubDate: i.pubDate
+                        };
+                        const div = document.createElement('div'); 
+                        div.className = 'search-item';
+                        const isExist = shelves.some(s => s.books.some(b => b.title === book.title));
+                        div.innerHTML = `<img src="${book.cover}" title="${book.title} - ${book.author}">
+                                         <p style="font-size:9px; margin-top:5px; color:${isExist?'var(--accent)':'white'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isExist?'[보유중] ':''}${book.title}</p>`;
+                        div.onclick = () => addBookToShelf(book);
+                        results.appendChild(div);
+                    });
+                }
+            } catch (e) { console.error("Search Error"); }
+        }
+
+        // --- 7. 원본 기능 완벽 유지 (운동 작용) ---
+        function toggleGuide(show) { document.getElementById('guideModal').style.display = show ? 'flex' : 'none'; }
+        
+        function toggleStats(e) {
+            if (e.target.tagName === 'INPUT') return;
+            const bar = document.getElementById('statsBar');
+            const btn = document.getElementById('toggleBtn');
+            const isCollapsed = bar.classList.toggle('collapsed');
+            btn.innerText = isCollapsed ? "펼치기" : "접기";
+        }
+
+        function toggleShelfExpand(sIdx) {
+            shelfExpandedStates[sIdx] = !shelfExpandedStates[sIdx];
+            render();
+        }
+
+        function render() {
+            const container = document.getElementById('shelfList');
+            const isHorizontal = document.getElementById('optHorizontal').checked;
+            const viewMode = document.getElementById('viewMode').value;
+            const filterKey = document.getElementById('shelfInnerSearch').value.toLowerCase();
+            
+            container.className = isHorizontal ? 'horizontal-layout' : '';
+            container.innerHTML = '';
+            updateStats();
+
+            new Sortable(container, {
+                animation: 250, handle: '.shelf-drag-handle', scroll: true,
+                onEnd: (evt) => {
+                    const movedItem = shelves.splice(evt.oldIndex, 1)[0];
+                    shelves.splice(evt.newIndex, 0, movedItem);
+                    save();
+                }
+            });
+
+            shelves.forEach((s, sIdx) => {
+                const filteredBooks = s.books.filter(b => 
+                    b.title.toLowerCase().includes(filterKey) || 
+                    (b.author && b.author.toLowerCase().includes(filterKey))
+                );
+
+                if (filterKey && filteredBooks.length === 0) return;
+
+                const isExpanded = shelfExpandedStates[sIdx] || false;
+                const showExpandBtn = filteredBooks.length > 20;
+                const displayBooks = (showExpandBtn && !isExpanded) ? filteredBooks.slice(0, 20) : filteredBooks;
+
+                const shelfEl = document.createElement('div');
+                shelfEl.className = 'shelf-wrapper';
+                
+                let contentHtml = '';
+                if (viewMode === 'text') {
+                    contentHtml = `<div class="book-table-container"><table class="book-table"><tbody class="book-grid" data-shelf="${sIdx}">
+                        ${displayBooks.map((b, bIdx) => {
+                            const realIdx = s.books.indexOf(b);
+                            const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
+                            const hasMemo = b.memo && b.memo.trim().length > 0;
+                            return `<tr class="${isSel ? 'selected' : ''}">
+                                <td class="cell-check"><input type="checkbox" ${isSel ? 'checked' : ''} onclick="toggleSelect(event, ${sIdx}, ${realIdx})"></td>
+                                <td class="cell-main" onclick="window.open('${b.link}', '_blank')">
+                                    <img class="mini-cover" src="${b.cover}">
+                                    <span>${b.title} ${hasMemo ? '💬' : ''} <small class="author-tag">${b.author || ''}</small></span>
+                                    ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
+                                </td>
+                                <td class="cell-action"><button class="table-btn" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button></td>
+                            </tr>`}).join('')}</tbody></table></div>`;
+                } else if (viewMode === 'spine') {
+                    contentHtml = `<div class="book-grid book-spine-display" data-shelf="${sIdx}">
+                        ${displayBooks.map((b, bIdx) => {
+                            const realIdx = s.books.indexOf(b);
+                            const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
+                            const hasMemo = b.memo && b.memo.trim().length > 0;
+                            return `<div class="book-spine ${isSel ? 'selected' : ''}" onclick="handleBookClick(event, ${sIdx}, ${realIdx}, '${b.link}')">
+                                <div class="spine-bg" style="background-image: url('${b.cover}')"></div>
+                                <div class="spine-content">
+                                    <button class="book-delete" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button>
+                                    <div class="spine-text">${hasMemo ? '💬 ' : ''}${b.title}</div>
+                                </div>
+                                ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
+                            </div>`}).join('')}</div>`;
+                } else {
+                    contentHtml = `<div class="book-grid book-grid-display" data-shelf="${sIdx}">
+                        ${displayBooks.map((b, bIdx) => {
+                            const realIdx = s.books.indexOf(b);
+                            const isSel = selectedItems.some(si => si.sIdx === sIdx && si.bIdx === realIdx);
+                            const hasMemo = b.memo && b.memo.trim().length > 0;
+                            return `<div class="book ${isSel ? 'selected' : ''}" onclick="handleBookClick(event, ${sIdx}, ${realIdx}, '${b.link}')">
+                                <button class="book-select-btn" onclick="toggleSelect(event, ${sIdx}, ${realIdx})">${isSel?'●':'○'}</button>
+                                <button class="book-delete" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button>
+                                ${hasMemo ? '<div class="memo-indicator">💬</div>' : ''}
+                                <img src="${b.cover}">
+                                <div class="book-overlay"><div class="book-hover-title">${b.title}</div><div class="book-hover-author">${b.author || ''}</div><div class="book-date">${b.addedDate || ''}</div><textarea class="book-memo-overlay" onclick="event.stopPropagation()" onchange="updateMemo(${sIdx}, ${realIdx}, this.value); render();">${b.memo || ''}</textarea></div>
+                                ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
+                            </div>`}).join('')}</div>`;
+                }
+
+                let expandBtnHtml = '';
+                if (showExpandBtn) {
+                    expandBtnHtml = `
+                        <div class="expand-toggle-wrapper">
+                            <button class="btn-expand-shelf" onclick="toggleShelfExpand(${sIdx})">
+                                ${isExpanded ? '접기 ▲' : `${filteredBooks.length - 20}권 더보기 ▼`}
+                            </button>
+                        </div>
+                    `;
+                }
+
+                shelfEl.innerHTML = `<div class="shelf-drag-handle">⠿</div><div class="shelf-header">
+                        <div class="shelf-title-area"><div class="color-dot" style="width:14px; height:14px; border-radius:50%; background:${s.color || '#ffffff'}; cursor:pointer;" onclick="togglePalette(event, ${sIdx})"></div><input type="text" class="shelf-title" style="color:${s.color || '#ffffff'}" value="${s.title}" onchange="updateShelfTitle(${sIdx}, this.value)"><div id="palette-${sIdx}" class="color-palette">${hipColors.map(c => `<div class="palette-item" style="background:${c}" onclick="changeShelfColor(${sIdx}, '${c}')"></div>`).join('')}</div></div>
+                        <div class="shelf-actions"><select onchange="sortShelf(${sIdx}, this.value)" style="background:transparent; border:none; color:var(--text-sub); font-size:10px; cursor:pointer;"><option value="">SORT</option><option value="date_desc">최신순</option><option value="date_asc">과거순</option><option value="title_asc">가나다</option></select><span onclick="deleteShelf(${sIdx})" style="color:#ff4444; font-size:10px; cursor:pointer; opacity:0.6;">DELETE</span></div>
+                    </div>${contentHtml}${expandBtnHtml}`;
+                container.appendChild(shelfEl);
+
+                const gridSelector = viewMode === 'text' ? 'tbody' : '.book-grid';
+                new Sortable(shelfEl.querySelector(gridSelector), {
+                    group: 'books', animation: 250, scroll: true, bubbleScroll: true, scrollSensitivity: 100, forceFallback: true,
+                    onEnd: (evt) => {
+                        if (!evt.to.dataset.shelf) return;
+                        const fromS = parseInt(evt.from.dataset.shelf);
+                        const toS = parseInt(evt.to.dataset.shelf);
+                        const [moved] = shelves[fromS].books.splice(evt.oldIndex, 1);
+                        shelves[toS].books.splice(evt.newIndex, 0, moved);
+                        save(); render();
+                    }
+                });
+            });
+        }
+
+        function updateStats() {
+            let total = 0;
+            const shelfList = document.getElementById('statsShelfList');
+            shelfList.innerHTML = '';
+            shelves.forEach(s => {
+                total += s.books.length;
+                const unit = document.createElement('div'); unit.className = 'stats-shelf-unit';
+                const visual = document.createElement('div'); visual.className = 'shelf-visual-area';
+                const colCount = Math.ceil(s.books.length / 10) || 1;
+                for (let i = 0; i < colCount; i++) {
+                    const col = document.createElement('div'); col.className = 'stack-column';
+                    const booksInCol = (i === colCount - 1) ? (s.books.length % 10 || (s.books.length > 0 ? 10 : 0)) : 10;
+                    for (let j = 0; j < booksInCol; j++) {
+                        const p = document.createElement('div'); p.className = 'stack-piece';
+                        p.style.background = s.color || '#ffffff'; col.appendChild(p);
+                    }
+                    visual.appendChild(col);
+                }
+                unit.innerHTML = `<div class="stats-shelf-info"><span class="stats-shelf-num" style="color:${s.color}">${s.books.length}</span><span class="stats-shelf-title">${s.title}</span></div>`;
+                unit.prepend(visual); shelfList.appendChild(unit);
+            });
+            document.getElementById('totalCount').innerText = total;
+        }
+
+        function addBookToShelf(book) {
+            const bookData = { ...book, addedDate: new Date().toLocaleDateString(), memo: "" };
+            if(shelves.length === 0) shelves.push({ title: 'MY COLLECTION', books: [], color: '#ffffff' });
+            shelves[0].books.unshift(bookData);
+            save(); render();
+        }
+
+        function clearSearch() { document.getElementById('kwInput').value = ''; document.getElementById('searchResults').innerHTML = ''; }
+        function addShelf() { shelves.push({ title: 'NEW STACK', books: [], color: hipColors[Math.floor(Math.random()*hipColors.length)] }); save(); render(); }
+        function deleteShelf(idx) { if (confirm('이 책장을 삭제할까요?')) { shelves.splice(idx, 1); save(); render(); } }
+        function updateShelfTitle(idx, val) { shelves[idx].title = val; save(); updateStats(); }
+        function togglePalette(e, idx) { e.stopPropagation(); const p = document.getElementById(`palette-${idx}`); p.style.display = (p.style.display==='grid')?'none':'grid'; }
+        function changeShelfColor(idx, color) { shelves[idx].color = color; save(); render(); }
+        function deleteBook(e, sIdx, bIdx) { e.stopPropagation(); shelves[sIdx].books.splice(bIdx, 1); save(); render(); }
+        function updateMemo(sIdx, bIdx, val) { shelves[sIdx].books[bIdx].memo = val; save(); }
+        
+        function sortShelf(sIdx, type) {
+            if (type === 'date_desc') shelves[sIdx].books.sort((a,b) => new Date(b.addedDate) - new Date(a.addedDate));
+            else if (type === 'date_asc') shelves[sIdx].books.sort((a,b) => new Date(a.addedDate) - new Date(b.addedDate));
+            else if (type === 'title_asc') shelves[sIdx].books.sort((a,b) => a.title.localeCompare(b.title));
+            save(); render();
+        }
+
+        function toggleSelect(e, sIdx, bIdx) {
+            e.stopPropagation();
+            const exists = selectedItems.findIndex(si => si.sIdx === sIdx && si.bIdx === bIdx);
+            if (exists > -1) selectedItems.splice(exists, 1);
+            else selectedItems.push({ sIdx, bIdx });
+            document.getElementById('multiMoveBtn').style.display = selectedItems.length > 0 ? 'block' : 'none';
+            render();
+        }
+
+        function moveSelectedPrompt() {
+             if(!selectedItems.length) return;
+            const shelfNames = shelves.map((s, i) => `${i}: ${s.title}`).join('\n');
+            const targetIdx = prompt(`이동할 책장의 번호를 입력하세요:\n${shelfNames}`);
+            if(targetIdx !== null && shelves[targetIdx]) {
+                const targetShelf = shelves[targetIdx];
+                selectedItems.sort((a,b) => b.bIdx - a.bIdx);
+                selectedItems.forEach(item => {
+                    const [book] = shelves[item.sIdx].books.splice(item.bIdx, 1);
+                    targetShelf.books.unshift(book);
+                });
+                selectedItems = [];
+                save(); render();
+            }
+        }
+
+        function handleBookClick(e, sIdx, bIdx, link) {
+            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+            window.open(link, '_blank');
+        }
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.color-palette').forEach(p => p.style.display = 'none');
+        });
+    </script>
 </body>
 </html>
