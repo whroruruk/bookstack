@@ -3,72 +3,352 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Book Stack 📚</title>
-    <link rel="stylesheet" href="style.css">
+    <title>whoruruk's Book Stack 📚</title>
+    <!-- CSS & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --cloud-dancer: #F0EEE9;
+            --silhouette: #2C2C2C;
+            --warm-mahogany: #903B31;
+            --cool-blue: #93B6CC;
+            --pitch-black: #000000;
+        }
+
+        body {
+            background-color: var(--cloud-dancer);
+            color: var(--silhouette);
+            font-family: 'Noto Sans KR', sans-serif;
+            padding-bottom: 100px;
+        }
+
+        /* Paper Texture */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0.05;
+            pointer-events: none;
+            background-image: url('https://www.transparenttextures.com/patterns/natural-paper.png');
+            z-index: 9999;
+        }
+
+        .neo-bold { font-family: 'Archivo Black', sans-serif; }
+
+        /* Neo-Brutalism Components */
+        .neo-card {
+            background: white;
+            border: 3px solid var(--pitch-black);
+            box-shadow: 6px 6px 0px var(--pitch-black);
+            transition: all 0.2s ease;
+            border-radius: 8px;
+        }
+
+        .neo-btn {
+            background: white;
+            border: 2px solid var(--pitch-black);
+            box-shadow: 4px 4px 0px var(--pitch-black);
+            padding: 8px 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .neo-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 0px 0px 0px var(--pitch-black);
+        }
+
+        .neo-btn.primary { background: var(--warm-mahogany); color: white; }
+        .neo-btn.accent { background: var(--cool-blue); color: var(--silhouette); }
+
+        .search-box {
+            width: 100%;
+            max-width: 600px;
+            border: 3px solid var(--pitch-black);
+            padding: 12px 20px;
+            font-size: 1.1rem;
+            outline: none;
+            border-radius: 50px;
+            box-shadow: 4px 4px 0px var(--pitch-black);
+        }
+
+        /* Book Grid */
+        .book-item {
+            position: relative;
+            transition: transform 0.2s;
+            cursor: grab;
+        }
+        .book-item:hover { transform: translateY(-5px); }
+        .book-item img {
+            width: 100%;
+            border: 2px solid var(--pitch-black);
+            box-shadow: 4px 4px 0px var(--pitch-black);
+            border-radius: 4px;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: -8px; right: -8px;
+            background: #ff4444;
+            color: white;
+            border: 2px solid black;
+            border-radius: 50%;
+            width: 24px; height: 24px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.4s ease-out forwards; }
+    </style>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <div class="title-container">
-                <div style="width: 24px;"><div class="logo-bar" style="width: 100%;"></div><div class="logo-bar" style="width: 60%;"></div><div class="logo-bar" style="width: 85%;"></div></div>
-                <h1 class="title">Book Stack<span>.</span></h1>
+<body class="p-4 md:p-10">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+            <div>
+                <h1 class="neo-bold text-4xl md:text-5xl tracking-tighter mb-2">BOOK STACK<span>.</span></h1>
+                <p class="text-stone-500 font-medium">읽을 책, 쌓다보면 언젠가 보겠지 📚</p>
             </div>
-            <div class="header-buttons">
-                <span id="syncStatus">인증 대기 중...</span>
-                <button id="loginBtn" class="btn btn-new-stack" onclick="handleLogin()">Login with Google</button>
-                <button id="logoutBtn" class="btn" style="display:none;" onclick="handleLogout()">Logout</button>
-                <button class="btn btn-new-stack" onclick="addShelf()">New Stack</button>
+            
+            <div class="flex flex-wrap gap-3">
+                <div id="authContainer" class="flex gap-3">
+                    <button id="loginBtn" class="neo-btn primary" onclick="handleLogin()">Login</button>
+                    <button id="logoutBtn" class="neo-btn" style="display:none;" onclick="handleLogout()">Logout</button>
+                </div>
+                <div id="dataActions" class="flex gap-3" style="display:none;">
+                    <button class="neo-btn accent" onclick="handleBackupSheet()">📊 시트 백업</button>
+                    <button class="neo-btn" onclick="handleOpenDrive()">📂 드라이브</button>
+                </div>
             </div>
         </header>
 
-        <section id="mainContent" style="display:none;">
-            <section class="hero-section">
-                <div class="hero-text">
-                    <h2>Book Stack 📚</h2>
-                    <div class="search-box">
-                        <input type="text" id="kwInput" placeholder="새로운 책 검색 및 추가..." onkeypress="if(event.keyCode==13) searchByKeyword()">
-                        <span class="clear-btn" onclick="clearSearch()">✕</span>
-                        <span style="cursor:pointer; opacity:0.7;" onclick="searchByKeyword()">🔍</span>
-                    </div>
+        <main id="mainContent" style="display:none;">
+            <!-- Search Section -->
+            <section class="mb-16 text-center">
+                <div class="relative inline-block w-full max-w-2xl">
+                    <input type="text" id="kwInput" class="search-box" placeholder="추가할 책 제목을 입력하세요..." onkeypress="if(event.keyCode==13) searchByKeyword()">
+                    <button class="absolute right-4 top-1/2 -translate-y-1/2 text-2xl" onclick="searchByKeyword()">🔍</button>
                 </div>
-                <div id="searchResults" class="search-results"></div>
+                <div id="searchResults" class="flex gap-4 overflow-x-auto py-8 px-4 no-scrollbar"></div>
             </section>
 
-            <div class="stats-container collapsed" id="statsBar" onclick="toggleStats(event)">
-                <div class="stats-header">
-                    <span class="stats-title">STACKS</span>
-                    <button class="stats-toggle-btn" id="toggleBtn">펼치기</button>
+            <!-- Stats Bar -->
+            <div class="neo-card p-6 mb-12 flex justify-between items-center bg-white">
+                <div>
+                    <span class="text-stone-400 font-bold text-xs uppercase tracking-widest">Total Collection</span>
+                    <div class="text-4xl neo-bold" id="totalCount">0</div>
                 </div>
-                <div class="stats-expand-area">
-                    <div class="stats-content-layout">
-                        <div class="total-box"><span class="total-num" id="totalCount">0</span><span class="total-lbl">TOTAL</span></div>
-                        <div class="stats-shelf-list" id="statsShelfList"></div>
-                    </div>
-                </div>
+                <button class="neo-btn primary" onclick="addShelf()">+ New Stack</button>
             </div>
 
-            <div id="shelfList"></div>
-        </section>
-        
-        <section id="loginMessage" style="text-align:center; padding:100px 0;">
-            <p style="color:var(--text-sub); letter-spacing:0.1em;">로그인 후 당신만의 서재를 가꾸어보세요. ✨</p>
+            <!-- Shelf List -->
+            <div id="shelfList" class="space-y-12"></div>
+        </main>
+
+        <section id="loginMessage" class="text-center py-32 neo-card bg-white/50">
+            <h2 class="text-2xl font-bold mb-4 italic">Welcome to whoruruk's Lab.</h2>
+            <p class="text-stone-500 mb-8">로그인 후 당신만의 소중한 독서 스택을 쌓아보세요.</p>
+            <button class="neo-btn primary px-12" onclick="handleLogin()">Google 계정으로 시작하기</button>
         </section>
     </div>
 
-    <button class="help-fab" onclick="toggleGuide(true)">❔</button>
+    <!-- Script Section -->
+    <script>
+        // 1. 설정 (GAS URL은 본인의 Web App URL로 교체하세요)
+        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbx.../exec'; 
+        const firebaseConfig = {
+            apiKey: "AIzaSyBfBYodmAEL-lnKfFn8KLXMc7XqCO1w4zw",
+            authDomain: "reading-lab-69ea0.firebaseapp.com",
+            projectId: "reading-lab-69ea0",
+            storageBucket: "reading-lab-69ea0.firebasestorage.app",
+            messagingSenderId: "45130148120",
+            appId: "1:45130148120:web:96629d86ca19972c6a166d"
+        };
+        const TTB_KEY = 'ttbtwinwhee0938001';
 
-    <div id="guideModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center;" onclick="toggleGuide(false)">
-        <div style="background:#111; padding:40px; border-radius:20px; border:1px solid var(--accent); max-width:500px;" onclick="event.stopPropagation()">
-            <h3 style="color:var(--accent); margin-bottom:20px;">Guide</h3>
-            <p style="color:#ccc; line-height:1.6;">구글 로그인 후 책을 검색하여 추가하세요. 드래그로 순서를 바꿀 수 있으며, 클라우드에 자동 저장됩니다.</p>
-            <button class="btn" style="margin-top:20px;" onclick="toggleGuide(false)">닫기</button>
-        </div>
-    </div>
+        // 2. 초기화
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        let currentUser = null;
+        let shelves = [];
 
-    <script src="script.js"></script>
+        // 3. 인증 감시
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('loginBtn').style.display = 'none';
+                document.getElementById('logoutBtn').style.display = 'block';
+                document.getElementById('dataActions').style.display = 'flex';
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('loginMessage').style.display = 'none';
+                loadData();
+            } else {
+                currentUser = null;
+                document.getElementById('loginBtn').style.display = 'block';
+                document.getElementById('logoutBtn').style.display = 'none';
+                document.getElementById('dataActions').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'none';
+                document.getElementById('loginMessage').style.display = 'block';
+            }
+        });
+
+        // 4. 기능 함수
+        async function handleLogin() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            await auth.signInWithPopup(provider);
+        }
+
+        function handleLogout() {
+            auth.signOut();
+        }
+
+        // 백업 및 드라이브 연동 (GAS 연동 부분)
+        async function handleBackupSheet() {
+            if (!confirm("현재 데이터를 구글 시트로 백업하시겠습니까?")) return;
+            
+            // 실제 구현시에는 GAS Web App으로 POST 요청을 보냅니다.
+            alert("백업 프로세스를 시작합니다. (GAS 연동 설정 필요)");
+            // window.open(`${GAS_WEB_APP_URL}?action=backup&data=${encodeURIComponent(JSON.stringify(shelves))}`, '_blank');
+        }
+
+        function handleOpenDrive() {
+            // GAS 코드의 getStorageFolderUrl 로직을 활용한 드라이브 검색 링크
+            const fileName = "My_BookStack_Data_DO_NOT_DELETE";
+            const driveUrl = "https://drive.google.com/drive/search?q=" + encodeURIComponent(fileName);
+            window.open(driveUrl, '_blank');
+        }
+
+        // 데이터 로드/저장 (Firestore 규칙 적용)
+        async function save() {
+            if (!currentUser) return;
+            const appId = 'reading-lab';
+            // 규칙 1 준수: artifacts/{appId}/users/{userId}/...
+            await db.collection("artifacts").doc(appId).collection("users").doc(currentUser.uid).set({
+                shelves: shelves,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            updateTotal();
+        }
+
+        async function loadData() {
+            const appId = 'reading-lab';
+            const doc = await db.collection("artifacts").doc(appId).collection("users").doc(currentUser.uid).get();
+            if (doc.exists) {
+                shelves = doc.data().shelves || [];
+            } else {
+                shelves = [{ title: 'MY COLLECTION', books: [], color: '#ffffff' }];
+            }
+            render();
+        }
+
+        // 알라딘 검색
+        async function searchByKeyword() {
+            const kw = document.getElementById('kwInput').value;
+            if (!kw) return;
+            
+            const apiUrl = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=10&start=1&SearchTarget=Book&output=js&Version=20131101`;
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+
+            try {
+                const response = await fetch(proxyUrl);
+                const rawData = await response.json();
+                let content = rawData.contents.trim();
+                if (content.endsWith(';')) content = content.substring(0, content.length - 1);
+                const data = JSON.parse(content);
+
+                const results = document.getElementById('searchResults');
+                results.innerHTML = '';
+                if (data.item) {
+                    data.item.forEach(i => {
+                        const book = {
+                            title: i.title.replace(/<[^>]*>?/gm, ''),
+                            cover: i.cover.replace('coversum', 'cover500'),
+                            author: i.author ? i.author.split('(지은이)')[0] : "",
+                            addedDate: new Date().toLocaleDateString()
+                        };
+                        const div = document.createElement('div');
+                        div.className = 'flex-shrink-0 w-32 cursor-pointer book-item animate-in';
+                        div.innerHTML = `<img src="${book.cover}" class="w-full h-44 object-cover"><p class="text-[10px] mt-2 font-bold truncate">${book.title}</p>`;
+                        div.onclick = () => { 
+                            if(shelves.length === 0) addShelf();
+                            shelves[0].books.unshift(book); 
+                            save(); render(); 
+                        };
+                        results.appendChild(div);
+                    });
+                }
+            } catch (e) { console.error("Search Error:", e); }
+        }
+
+        function render() {
+            const container = document.getElementById('shelfList');
+            container.innerHTML = '';
+            
+            shelves.forEach((s, sIdx) => {
+                const shelfEl = document.createElement('div');
+                shelfEl.className = 'neo-card p-8 animate-in';
+                shelfEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-8">
+                        <input type="text" class="neo-bold text-2xl bg-transparent border-none outline-none" 
+                               style="color:${s.color === '#ffffff' ? 'inherit' : s.color}" 
+                               value="${s.title}" onchange="shelves[${sIdx}].title=this.value; save();">
+                        <button onclick="deleteShelf(${sIdx})" class="text-stone-300 hover:text-red-500 font-bold">DELETE</button>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-6" id="grid-${sIdx}">
+                        ${s.books.map((b, bIdx) => `
+                            <div class="book-item">
+                                <button class="delete-btn" onclick="deleteBook(${sIdx}, ${bIdx})">×</button>
+                                <img src="${b.cover}" alt="${b.title}">
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(shelfEl);
+            });
+            updateTotal();
+        }
+
+        function addShelf() {
+            const colors = ['#93B6CC', '#903B31', '#2C2C2C', '#adb5bd', '#ffbe0b'];
+            shelves.push({ 
+                title: 'NEW STACK', 
+                books: [], 
+                color: colors[Math.floor(Math.random()*colors.length)] 
+            });
+            save(); render();
+        }
+
+        function deleteShelf(idx) {
+            if(confirm("이 스택을 삭제할까요?")) { shelves.splice(idx, 1); save(); render(); }
+        }
+
+        function deleteBook(sIdx, bIdx) {
+            shelves[sIdx].books.splice(bIdx, 1); save(); render();
+        }
+
+        function updateTotal() {
+            let total = 0;
+            shelves.forEach(s => total += s.books.length);
+            document.getElementById('totalCount').innerText = total;
+        }
+    </script>
 </body>
 </html>
