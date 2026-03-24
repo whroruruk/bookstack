@@ -19,8 +19,10 @@
             <div class="header-buttons">
                 <span id="syncStatus">준비 중...</span>
                 <button id="loginBtn" class="btn btn-new-stack" onclick="handleLogin()">Google 연결</button>
-                <button id="logoutBtn" class="btn" style="display:none;" onclick="handleLogout()">연결 해제</button>
-                <button class="btn btn-new-stack" onclick="addShelf()">New Stack</button>
+                <div id="userActions" style="display:none; gap:10px; align-items:center;">
+                    <button id="logoutBtn" class="btn" onclick="handleLogout()">연결 해제</button>
+                    <button class="btn btn-new-stack" onclick="addShelf()">New Stack</button>
+                </div>
             </div>
         </header>
 
@@ -39,35 +41,21 @@
 
             <div class="stats-container collapsed" id="statsBar" onclick="toggleStats(event)">
                 <div class="stats-header">
-                    <span class="stats-title">STACKS</span>
-                    <button class="stats-toggle-btn" id="toggleBtn">펼치기</button>
-                </div>
-                <div class="stats-expand-area">
-                    <div class="stats-content-layout">
-                        <div class="total-box"><span class="total-num" id="totalCount">0</span><span class="total-lbl">TOTAL</span></div>
-                        <div id="statsShelfList"></div>
+                    <div>
+                        <span class="stats-title">STACKS</span>
+                        <span style="margin-left:15px; font-weight:900; opacity:0.6;"><span id="totalCount">0</span> TOTAL</span>
                     </div>
+                    <button class="stats-toggle-btn">펼치기</button>
                 </div>
+                <div class="stats-expand-area"><div id="statsShelfList" class="stats-content-layout"></div></div>
             </div>
-
             <div id="shelfList"></div>
         </section>
         
         <section id="loginMessage" style="text-align:center; padding:100px 0;">
-            <p style="color:var(--text-sub); letter-spacing:0.1em;">구글 드라이브와 연결하여 당신만의 **개인 서고** 를 가꾸어보세요. ✨</p>
+            <p style="color:var(--text-sub); letter-spacing:0.1em;">구글 드라이브와 연결하여 당신만의 **데이터 자립 서재** 를 시작하세요. ✨</p>
         </section>
     </div>
-
-    <button class="help-fab" onclick="toggleGuide(true)">❔</button>
-
-    <div id="guideModal" style="display:none;" onclick="toggleGuide(false)">
-        <div class="guide-box" onclick="event.stopPropagation()">
-            <h3 style="color:var(--accent); margin-bottom:20px;">Guide</h3>
-            <p style="color:#ccc; line-height:1.6;">모든 데이터는 당신의 **구글 드라이브** 내 앱 전용 폴더에 안전하게 저장됩니다. </p>
-            <button class="btn" style="margin-top:20px;" onclick="toggleGuide(false)">닫기</button>
-        </div>
-    </div>
-
     <script src="script.js"></script>
 </body>
 </html>
