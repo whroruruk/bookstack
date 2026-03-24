@@ -57,19 +57,22 @@ async function save() {
     if (!currentUser) return;
     document.getElementById('syncStatus').innerText = "저장 중...";
     try {
-        await db.collection("users").doc(currentUser.uid).set({
+        // 지정된 고정 문서 ID(My_BookStack_Data_DO_NOT_DELETE)를 사용하여 저장합니다.
+        await db.collection("users").doc("My_BookStack_Data_DO_NOT_DELETE").set({
             shelves: shelves,
             lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
         });
         document.getElementById('syncStatus').innerText = "저장 완료";
     } catch (e) {
         document.getElementById('syncStatus').innerText = "저장 실패";
+        console.error("Save Error:", e);
     }
 }
 
 async function loadData() {
     try {
-        const doc = await db.collection("users").doc(currentUser.uid).get();
+        // 지정된 고정 문서 ID(My_BookStack_Data_DO_NOT_DELETE)로부터 데이터를 불러옵니다.
+        const doc = await db.collection("users").doc("My_BookStack_Data_DO_NOT_DELETE").get();
         if (doc.exists) {
             shelves = doc.data().shelves || [];
         } else {
@@ -164,7 +167,8 @@ function deleteBook(sIdx, bIdx) {
 function updateTotal() {
     let total = 0;
     shelves.forEach(s => total += s.books.length);
-    document.getElementById('totalCount').innerText = total;
+    const totalCountEl = document.getElementById('totalCount');
+    if (totalCountEl) totalCountEl.innerText = total;
 }
 
 function clearSearch() { document.getElementById('kwInput').value = ''; document.getElementById('searchResults').innerHTML = ''; }
