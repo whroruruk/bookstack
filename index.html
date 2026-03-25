@@ -300,7 +300,7 @@
                 <button class="btn" id="multiMoveBtn" style="display:none; border-color: var(--accent); color:var(--accent);" onclick="moveSelectedPrompt()">Move Selected</button>
             </div>
 
-            <div id="shelfList"><p style="text-align:center; padding:100px; color:var(--text-sub); letter-spacing:0.2em;">LOADING YOUR LIBRARY...</p></div>
+            <div id="shelfList"></div>
         </section>
 
         <section id="loginMessage" style="text-align:center; padding:100px 0;">
@@ -365,6 +365,8 @@
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID, scope: SCOPES, callback: async (resp) => {
                     if (resp.error) return;
+                    // 토큰 만료 시간 기록 (현재 시간 + 유효시간 초 * 1000)
+                    resp.expires_at = Date.now() + (resp.expires_in * 1000);
                     localStorage.setItem('gapi_token', JSON.stringify(resp));
                     await afterLoggedIn();
                 },
@@ -372,14 +374,38 @@
             gisInited = true;
         };
 
+        // UI를 로그아웃 상태(초기 화면)로 되돌리는 공통 함수
+        function initLoggedOutState(message = "구글 계정으로 로그인하여 당신의 서재를 열어보세요. ✨") {
+            document.getElementById('loginBtn').style.display = 'block';
+            document.getElementById('userActions').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('loginMessage').style.display = 'block';
+            document.getElementById('loginMessage').innerHTML = `<p style="color:var(--text-sub); letter-spacing:0.1em;">${message}</p>`;
+            document.getElementById('syncStatus').innerText = "Cloud Ready";
+            document.getElementById('shelfList').innerHTML = ''; 
+        }
+
+        // 토큰이 만료되었을 때 호출되는 함수
+        function handleSessionExpired() {
+            console.log("세션이 만료되어 로그아웃 처리합니다.");
+            localStorage.removeItem('gapi_token');
+            if (gapi.client) gapi.client.setToken(null);
+            initLoggedOutState("세션이 만료되었습니다. 안전을 위해 다시 로그인해 주세요. ⏳");
+        }
+
         async function checkPersistentLogin() {
             const savedToken = localStorage.getItem('gapi_token');
             if (savedToken) {
                 const token = JSON.parse(savedToken);
-                gapi.client.setToken(token);
-                await afterLoggedIn();
+                // 토큰 만료 체크 (여유분으로 5분(300000ms) 일찍 만료 처리하여 에러 방지)
+                if (token.expires_at && Date.now() > token.expires_at - 300000) {
+                    handleSessionExpired();
+                } else {
+                    gapi.client.setToken(token);
+                    await afterLoggedIn();
+                }
             } else {
-                document.getElementById('syncStatus').innerText = "Cloud Ready";
+                initLoggedOutState();
             }
         }
 
@@ -389,11 +415,17 @@
             document.getElementById('mainContent').style.display = 'block';
             document.getElementById('loginMessage').style.display = 'none';
             document.getElementById('syncStatus').innerText = "Connecting...";
+            document.getElementById('shelfList').innerHTML = '<p style="text-align:center; padding:100px; color:var(--text-sub); letter-spacing:0.2em;">LOADING YOUR LIBRARY...</p>';
             await findOrCreateDataFile(); 
         }
 
-        function handleLogin() { tokenClient.requestAccessToken({ prompt: 'consent' }); }
-        function handleLogout() { localStorage.removeItem('gapi_token'); location.reload(); }
+        // 팝업을 강제하지 않고 자연스럽게 세션을 이어가기 위해 prompt 옵션 제거
+        function handleLogin() { tokenClient.requestAccessToken(); }
+        
+        function handleLogout() { 
+            localStorage.removeItem('gapi_token'); 
+            location.reload(); 
+        }
 
         async function findOrCreateDataFile() {
             try {
@@ -410,7 +442,10 @@
                     await save();
                     render();
                 }
-            } catch (err) { console.error("File Search Error"); }
+            } catch (err) { 
+                console.error("File Search Error");
+                if (err.status === 401) handleSessionExpired(); // 401 에러 발생 시 자동 만료 처리
+            }
         }
 
         async function loadData() {
@@ -426,11 +461,14 @@
                 }
                 render();
                 document.getElementById('syncStatus').innerText = "Cloud Active";
-            } catch (err) { console.error("Data Load Error"); }
+            } catch (err) { 
+                console.error("Data Load Error");
+                if (err.status === 401) handleSessionExpired();
+            }
         }
 
         async function save() {
-            if (!gapi.client.getToken()) return;
+            if (!gapi.client.getToken()) return handleSessionExpired();
             document.getElementById('syncStatus').innerText = "Syncing...";
             
             const metadata = { 'name': DATA_FILE_NAME };
@@ -447,11 +485,17 @@
                 });
                 if (!fileId) fileId = res.result.id;
                 document.getElementById('syncStatus').innerText = "Cloud Active";
-            } catch (err) { document.getElementById('syncStatus').innerText = "Sync Error"; }
+            } catch (err) { 
+                if (err.status === 401) {
+                    handleSessionExpired();
+                } else {
+                    document.getElementById('syncStatus').innerText = "Sync Error"; 
+                }
+            }
         }
 
         async function backupToSheet() {
-            if (!gapi.client.getToken()) return alert("로그인이 필요합니다.");
+            if (!gapi.client.getToken()) return handleSessionExpired();
             document.getElementById('syncStatus').innerText = "백업 중...";
             
             let csvContent = "\uFEFFStack,Title,Author,Publisher,PubDate,Date,Memo,AladinLink\n";
@@ -477,8 +521,12 @@
                 alert("백업 완료! 구글 드라이브에 시트가 생성되었습니다.");
                 document.getElementById('syncStatus').innerText = "Cloud Active";
             } catch (err) {
-                alert("백업 실패");
-                document.getElementById('syncStatus').innerText = "Cloud Active";
+                if (err.status === 401) {
+                    handleSessionExpired();
+                } else {
+                    alert("백업 실패");
+                    document.getElementById('syncStatus').innerText = "Cloud Active";
+                }
             }
         }
 
