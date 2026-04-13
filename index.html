@@ -5,7 +5,51 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Book Stack 📚</title>
     <meta name="google-site-verification" content="RGTC9c8GtMgvT1HtDz5vzgXPGl9f-DSDOq1lCW95In8" />
-    
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Book Stack - 나만의 디지털 서재. 알라딘 도서검색으로 책을 등록하고, 구글 드라이브에 안전하게 보관하세요. 표지, 책등, 목록 3가지 뷰 모드와 메모 기능을 제공합니다.">
+    <meta name="keywords" content="북스택, 독서관리, 서재, 책장, 알라딘, 도서검색, 독서기록, BookStack, reading tracker">
+    <link rel="canonical" href="https://hwiruruk.github.io/bookstack/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Book Stack - 나만의 디지털 서재">
+    <meta property="og:description" content="알라딘 도서검색으로 책을 등록하고, 구글 드라이브에 안전하게 보관하는 나만의 디지털 서재.">
+    <meta property="og:url" content="https://hwiruruk.github.io/bookstack/">
+    <meta property="og:site_name" content="Book Stack">
+    <meta property="og:locale" content="ko_KR">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Book Stack - 나만의 디지털 서재">
+    <meta name="twitter:description" content="알라딘 도서검색으로 책을 등록하고, 구글 드라이브에 안전하게 보관하는 나만의 디지털 서재.">
+
+    <!-- Preconnect for faster resource loading -->
+    <link rel="preconnect" href="https://www.aladin.co.kr">
+    <link rel="preconnect" href="https://apis.google.com">
+    <link rel="preconnect" href="https://accounts.google.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://image.aladin.co.kr">
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Book Stack",
+        "description": "나만의 디지털 서재. 알라딘 도서검색으로 책을 등록하고, 구글 드라이브에 안전하게 보관하세요.",
+        "url": "https://hwiruruk.github.io/bookstack/",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "ko",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "KRW"
+        }
+    }
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
@@ -305,7 +349,7 @@
                     <div class="shelf-search-wrapper" onclick="event.stopPropagation()">
                         <div class="shelf-search-box">
                             <span>🔍</span>
-                            <input type="text" id="shelfInnerSearch" placeholder="내 책장에서 검색..." oninput="render()">
+                            <input type="text" id="shelfInnerSearch" placeholder="내 책장에서 검색..." oninput="debouncedRender()">
                         </div>
                     </div>
                 </div>
@@ -372,6 +416,13 @@
         let shelves = [];
         let selectedItems = [];
         let shelfExpandedStates = {};
+
+        // 내부 검색 디바운스 (200ms)
+        let renderTimer = null;
+        function debouncedRender() {
+            clearTimeout(renderTimer);
+            renderTimer = setTimeout(() => render(), 200);
+        }
 
         window.onload = () => {
             gapi.load('client', async () => {
@@ -551,41 +602,78 @@
             window.open('https://drive.google.com/drive/search?q=' + encodeURIComponent(DATA_FILE_NAME), '_blank');
         }
 
-        async function searchByKeyword() {
-            const kw = document.getElementById('kwInput').value;
+        // 검색 결과 캐시 (동일 키워드 재검색 시 즉시 표시)
+        const searchCache = {};
+        let searchTimeout = null;
+
+        function searchByKeyword() {
+            const kw = document.getElementById('kwInput').value.trim();
             if (!kw) return;
-            const url = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101`;
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-            
-            try {
-                const res = await fetch(proxyUrl);
-                const rawData = await res.json();
-                let content = rawData.contents.trim();
-                if (content.endsWith(';')) content = content.substring(0, content.length - 1);
-                const data = JSON.parse(content);
-                
-                const results = document.getElementById('searchResults');
-                results.innerHTML = '';
-                if (data.item) {
-                    data.item.forEach(i => {
-                        const book = {
-                            title: i.title.replace(/<[^>]*>?/gm, ''),
-                            cover: i.cover.replace('coversum', 'cover500'),
-                            link: i.link,
-                            author: i.author ? i.author.split('(지은이)')[0] : "",
-                            publisher: i.publisher,
-                            pubDate: i.pubDate
-                        };
-                        const div = document.createElement('div'); 
-                        div.className = 'search-item';
-                        const isExist = shelves.some(s => s.books.some(b => b.title === book.title));
-                        div.innerHTML = `<img src="${book.cover}" title="${book.title} - ${book.author}">
-                                         <p style="font-size:9px; margin-top:5px; color:${isExist?'var(--accent)':'white'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isExist?'[보유중] ':''}${book.title}</p>`;
-                        div.onclick = () => addBookToShelf(book);
-                        results.appendChild(div);
-                    });
-                }
-            } catch (e) { console.error("Search Error"); }
+
+            const results = document.getElementById('searchResults');
+
+            // 캐시에 있으면 즉시 표시
+            if (searchCache[kw]) {
+                renderSearchResults(searchCache[kw], results);
+                return;
+            }
+
+            // 로딩 표시
+            results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 중...</p>';
+
+            // JSONP 방식으로 알라딘 API 직접 호출 (CORS 프록시 제거)
+            const callbackName = '_aladinCb_' + Date.now();
+            const script = document.createElement('script');
+
+            // 타임아웃 처리 (5초)
+            const timeout = setTimeout(() => {
+                cleanup();
+                results.innerHTML = '<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">검색 시간이 초과되었습니다. 다시 시도해주세요.</p>';
+            }, 5000);
+
+            function cleanup() {
+                clearTimeout(timeout);
+                delete window[callbackName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+            }
+
+            window[callbackName] = function(data) {
+                cleanup();
+                const items = data.item || [];
+                searchCache[kw] = items;
+                renderSearchResults(items, results);
+            };
+
+            script.src = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101&callback=${callbackName}`;
+            script.onerror = () => {
+                cleanup();
+                results.innerHTML = '<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">검색에 실패했습니다. 다시 시도해주세요.</p>';
+            };
+            document.head.appendChild(script);
+        }
+
+        function renderSearchResults(items, results) {
+            results.innerHTML = '';
+            items.forEach(i => {
+                const book = {
+                    title: i.title.replace(/<[^>]*>?/gm, ''),
+                    cover: i.cover.replace('coversum', 'cover500'),
+                    link: i.link,
+                    author: i.author ? i.author.split('(지은이)')[0] : "",
+                    publisher: i.publisher,
+                    pubDate: i.pubDate
+                };
+                const div = document.createElement('div');
+                div.className = 'search-item';
+                const isExist = shelves.some(s => s.books.some(b => b.title === book.title));
+                div.innerHTML = `<img src="${book.cover}" loading="lazy" title="${book.title} - ${book.author}">
+                                 <p style="font-size:9px; margin-top:5px; color:${isExist?'var(--accent)':'white'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isExist?'[보유중] ':''}${book.title}</p>`;
+                div.onclick = () => addBookToShelf(book);
+                results.appendChild(div);
+            });
+            if (items.length === 0) {
+                results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 결과가 없습니다.</p>';
+            }
         }
 
         function toggleGuide(show) { document.getElementById('guideModal').style.display = show ? 'flex' : 'none'; }
@@ -647,7 +735,7 @@
                             return `<tr class="${isSel ? 'selected' : ''}">
                                 <td class="cell-check"><input type="checkbox" ${isSel ? 'checked' : ''} onclick="toggleSelect(event, ${sIdx}, ${realIdx})"></td>
                                 <td class="cell-main" onclick="window.open('${b.link}', '_blank')">
-                                    <img class="mini-cover" src="${b.cover}">
+                                    <img class="mini-cover" src="${b.cover}" loading="lazy">
                                     <span>${b.title} ${hasMemo ? '💬' : ''} <small class="author-tag">${b.author || ''}</small></span>
                                     ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
                                 </td>
@@ -677,7 +765,7 @@
                                 <button class="book-select-btn" onclick="toggleSelect(event, ${sIdx}, ${realIdx})">${isSel?'●':'○'}</button>
                                 <button class="book-delete" onclick="deleteBook(event, ${sIdx}, ${realIdx})">✕</button>
                                 ${hasMemo ? '<div class="memo-indicator">💬</div>' : ''}
-                                <img src="${b.cover}">
+                                <img src="${b.cover}" loading="lazy">
                                 <div class="book-overlay"><div class="book-hover-title">${b.title}</div><div class="book-hover-author">${b.author || ''}</div><div class="book-date">${b.addedDate || ''}</div><textarea class="book-memo-overlay" onclick="event.stopPropagation()" onchange="updateMemo(${sIdx}, ${realIdx}, this.value); render();">${b.memo || ''}</textarea></div>
                                 ${hasMemo ? `<div class="memo-popup">${b.memo}</div>` : ''}
                             </div>`}).join('')}</div>`;
