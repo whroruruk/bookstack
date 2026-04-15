@@ -606,7 +606,7 @@
         const searchCache = {};
         let searchTimeout = null;
 
-        function searchByKeyword() {
+        async function searchByKeyword() {
             const kw = document.getElementById('kwInput').value.trim();
             if (!kw) return;
 
@@ -621,35 +621,32 @@
             // 로딩 표시
             results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 중...</p>';
 
-            // JSONP 방식으로 알라딘 API 직접 호출 (CORS 프록시 제거)
-            const callbackName = '_aladinCb_' + Date.now();
-            const script = document.createElement('script');
+            // 알라딘 OpenAPI는 CORS를 허용하지 않으므로 프록시를 통해 호출합니다.
+            const apiUrl = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101`;
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
 
-            // 타임아웃 처리 (5초)
-            const timeout = setTimeout(() => {
-                cleanup();
-                results.innerHTML = '<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">검색 시간이 초과되었습니다. 다시 시도해주세요.</p>';
-            }, 5000);
+            // 타임아웃 처리 (10초)
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000);
 
-            function cleanup() {
+            try {
+                const res = await fetch(proxyUrl, { signal: controller.signal });
                 clearTimeout(timeout);
-                delete window[callbackName];
-                if (script.parentNode) script.parentNode.removeChild(script);
-            }
-
-            window[callbackName] = function(data) {
-                cleanup();
+                if (!res.ok) throw new Error('Network response was not ok');
+                const rawData = await res.json();
+                let content = (rawData.contents || '').trim();
+                if (content.endsWith(';')) content = content.substring(0, content.length - 1);
+                const data = JSON.parse(content);
                 const items = data.item || [];
                 searchCache[kw] = items;
                 renderSearchResults(items, results);
-            };
-
-            script.src = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101&callback=${callbackName}`;
-            script.onerror = () => {
-                cleanup();
-                results.innerHTML = '<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">검색에 실패했습니다. 다시 시도해주세요.</p>';
-            };
-            document.head.appendChild(script);
+            } catch (e) {
+                clearTimeout(timeout);
+                const msg = e.name === 'AbortError'
+                    ? '검색 시간이 초과되었습니다. 다시 시도해주세요.'
+                    : '검색에 실패했습니다. 다시 시도해주세요.';
+                results.innerHTML = `<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">${msg}</p>`;
+            }
         }
 
         function renderSearchResults(items, results) {
