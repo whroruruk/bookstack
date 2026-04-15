@@ -2,7 +2,7 @@
 const CLIENT_ID = '982927191150-uc696nka5n0n3j0qmjt0mjnl1tgsj7i0.apps.googleusercontent.com';
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-const TTB_KEY = 'ttbtwinwhee0938001';
+const TTB_KEY = 'ttbtwinwhee0938003';
 const DATA_FILE_NAME = 'My_BookStack_Data_DO_NOT_DELETE';
 
 let tokenClient, gapiInited = false, gisInited = false, shelves = [], fileId = null;

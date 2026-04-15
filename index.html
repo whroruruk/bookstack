@@ -407,7 +407,7 @@
         const CLIENT_ID = '982927191150-uc696nka5n0n3j0qmjt0mjnl1tgsj7i0.apps.googleusercontent.com';
         const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
         const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-        const TTB_KEY = 'ttbtwinwhee0938001';
+        const TTB_KEY = 'ttbtwinwhee0938003';
         const DATA_FILE_NAME = 'My_BookStack_Data_DO_NOT_DELETE';
 
         let tokenClient, gapiInited = false, gisInited = false, fileId = null;
@@ -621,36 +621,49 @@
             // 로딩 표시
             results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 중...</p>';
 
-            // 알라딘 OpenAPI는 CORS를 허용하지 않으므로 프록시를 통해 호출합니다.
-            const apiUrl = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101`;
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+            // 알라딘 OpenAPI는 허용 도메인을 Referer로 검사합니다.
+            // 프록시를 경유하면 Referer가 프록시 도메인으로 바뀌어 차단되므로
+            // JSONP(<script> 태그)로 브라우저가 직접 호출하도록 합니다.
+            const callbackName = '_aladinCb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+            const script = document.createElement('script');
 
-            // 타임아웃 처리 (10초)
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000);
+            const timeoutId = setTimeout(() => {
+                cleanup();
+                results.innerHTML = '<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">검색 시간이 초과되었습니다. 다시 시도해주세요.</p>';
+            }, 10000);
 
-            try {
-                const res = await fetch(proxyUrl, { signal: controller.signal });
-                clearTimeout(timeout);
-                if (!res.ok) throw new Error('Network response was not ok');
-                const rawData = await res.json();
-                let content = (rawData.contents || '').trim();
-                if (content.endsWith(';')) content = content.substring(0, content.length - 1);
-                const data = JSON.parse(content);
-                const items = data.item || [];
+            function cleanup() {
+                clearTimeout(timeoutId);
+                delete window[callbackName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+            }
+
+            window[callbackName] = function(data) {
+                cleanup();
+                const items = (data && data.item) ? data.item : [];
                 searchCache[kw] = items;
                 renderSearchResults(items, results);
-            } catch (e) {
-                clearTimeout(timeout);
-                const msg = e.name === 'AbortError'
-                    ? '검색 시간이 초과되었습니다. 다시 시도해주세요.'
-                    : '검색에 실패했습니다. 다시 시도해주세요.';
-                results.innerHTML = `<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">${msg}</p>`;
-            }
+            };
+
+            script.src = `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx?ttbkey=${TTB_KEY}&Query=${encodeURIComponent(kw)}&QueryType=Keyword&MaxResults=15&start=1&SearchTarget=Book&output=js&Version=20131101&callback=${callbackName}`;
+            script.onerror = () => {
+                cleanup();
+                results.innerHTML = '<p style="color:#ff4444; padding:40px 20px; font-size:0.85rem;">검색에 실패했습니다. (API 키 또는 허용 도메인 설정을 확인하세요)</p>';
+            };
+            document.head.appendChild(script);
         }
 
         function renderSearchResults(items, results) {
             results.innerHTML = '';
+            if (items.length === 0) {
+                results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 결과가 없습니다.</p>';
+                return;
+            }
+            // 보유중 판정을 위한 제목 Set을 한 번만 구축 (검색 요청과는 분리된 로컬 연산)
+            const ownedTitles = new Set();
+            for (const s of shelves) for (const b of s.books) ownedTitles.add(b.title);
+
+            const frag = document.createDocumentFragment();
             items.forEach(i => {
                 const book = {
                     title: i.title.replace(/<[^>]*>?/gm, ''),
@@ -662,15 +675,13 @@
                 };
                 const div = document.createElement('div');
                 div.className = 'search-item';
-                const isExist = shelves.some(s => s.books.some(b => b.title === book.title));
+                const isExist = ownedTitles.has(book.title);
                 div.innerHTML = `<img src="${book.cover}" loading="lazy" title="${book.title} - ${book.author}">
                                  <p style="font-size:9px; margin-top:5px; color:${isExist?'var(--accent)':'white'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isExist?'[보유중] ':''}${book.title}</p>`;
                 div.onclick = () => addBookToShelf(book);
-                results.appendChild(div);
+                frag.appendChild(div);
             });
-            if (items.length === 0) {
-                results.innerHTML = '<p style="color:var(--text-sub); padding:40px 20px; font-size:0.85rem;">검색 결과가 없습니다.</p>';
-            }
+            results.appendChild(frag);
         }
 
         function toggleGuide(show) { document.getElementById('guideModal').style.display = show ? 'flex' : 'none'; }
